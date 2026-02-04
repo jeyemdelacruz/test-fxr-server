@@ -1,8 +1,6 @@
 /**
- * WebRTC Signaling Server (Railway Compatible)
- * - Room-based
- * - Non-local
- * - Works across different networks
+ * Simple WebRTC Signaling Server
+ * Works locally and on cloud platforms (Railway / Render)
  */
 
 const express = require("express");
@@ -12,74 +10,45 @@ const WebSocket = require("ws");
 const app = express();
 const server = http.createServer(app);
 
-// Railway / cloud must use process.env.PORT
+// IMPORTANT: use environment port for cloud deployment
 const PORT = process.env.PORT || 3000;
 
+// Basic HTTP route (for health check)
 app.get("/", (req, res) => {
-    res.send("✅ WebRTC Signaling Server Running");
+    res.send("✅ WebRTC Signaling Server is running");
 });
 
+// Create WebSocket server
 const wss = new WebSocket.Server({ server });
 
-// roomId -> Set of sockets
-const rooms = new Map();
-
-wss.on("connection", (ws) => {
+wss.on("connection", (socket) => {
     console.log("🟢 Client connected");
 
-    ws.on("message", (data) => {
-        let msg;
-        try {
-            msg = JSON.parse(data);
-        } catch {
-            console.error("❌ Invalid JSON");
-            return;
-        }
+    socket.on("message", (message) => {
+        console.log("📩 Received:", message.toString());
 
-        const { type, roomId } = msg;
-
-        // JOIN ROOM
-        if (type === "join") {
-            if (!rooms.has(roomId)) {
-                rooms.set(roomId, new Set());
-            }
-
-            rooms.get(roomId).add(ws);
-            ws.roomId = roomId;
-
-            console.log(`👥 Joined room: ${roomId}`);
-            return;
-        }
-
-        // RELAY SIGNALING MESSAGE
-        if (!ws.roomId || !rooms.has(ws.roomId)) return;
-
-        rooms.get(ws.roomId).forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(msg));
+        // Broadcast message to all clients except sender
+        wss.clients.forEach((client) => {
+            if (client !== socket && client.readyState === WebSocket.OPEN) {
+                client.send(message);
             }
         });
     });
 
-    ws.on("close", () => {
-        const roomId = ws.roomId;
-        if (roomId && rooms.has(roomId)) {
-            rooms.get(roomId).delete(ws);
-            if (rooms.get(roomId).size === 0) {
-                rooms.delete(roomId);
-            }
-        }
+    socket.on("close", () => {
         console.log("🔴 Client disconnected");
     });
 
-    ws.on("error", (err) => {
-        console.error("❌ WS Error:", err);
+    socket.on("error", (err) => {
+        console.error("❌ WebSocket error:", err);
     });
 });
 
+// Start server
 server.listen(PORT, () => {
-    console.log("==================================");
-    console.log("🚀 WebRTC Signaling Server Online");
-    console.log(`🌐 PORT: ${PORT}`);
-    console.log("==================================");
+    console.log("=======================================");
+    console.log("✅ WebRTC Signaling Server Started");
+    console.log(`🌐 HTTP  : http://localhost:${PORT}`);
+    console.log(`🔌 WS   : ws://localhost:${PORT}`);
+    console.log("=======================================");
 });
