@@ -36,7 +36,7 @@ wss.on("connection", (socket) => {
     });
 
     socket.on("close", () => {
-        console.log("🔴 Client disconnected");
+        console.log("🔴 Client disconnecteds");
     });
 
     socket.on("error", (err) => {
